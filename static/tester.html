@@ -368,10 +368,15 @@
                 return;
             }
             
+            const file = fileInput.files[0];
+            
             // Create FormData object
             const formData = new FormData();
-            formData.append('image', fileInput.files[0]);
-            formData.append('debug', 'true'); // Add debug flag to FormData
+            formData.append('image', file);
+            formData.append('debug', 'true');
+            formData.append('file_name', file.name);
+            formData.append('file_type', file.type);
+            formData.append('file_size', file.size);
             
             // Show processing indicator
             submitButton.disabled = true;
@@ -383,6 +388,7 @@
             document.getElementById('todoistPanel').innerHTML = '<p>Waiting for Todoist API response...</p>';
             
             addLog('Starting processing...', 'info');
+            addLog(`File details: name=${file.name}, type=${file.type}, size=${file.size} bytes`, 'info');
             
             try {
                 // Send the request to the server
@@ -415,39 +421,44 @@
                     // Main result
                     let resultHtml = `
                         <h3 class="success">Success!</h3>
+                        <div class="result-content">
+                    `;
+                    
+                    // Display task info
+                    if (data.title) {
+                        resultHtml += `<p><strong>Task Title:</strong> ${data.title}</p>`;
+                    }
+                    
+                    if (data.task_created) {
+                        resultHtml += `<p><strong>Task Created:</strong> <span class="success">Yes</span></p>`;
+                    }
+                    
+                    resultHtml += `<p><strong>Processing Time:</strong> ${processingTime} seconds</p>`;
+                    
+                    // Add file attachment info
+                    if (data.file_attachment) {
+                        resultHtml += `
+                            <div class="attachment-info">
+                                <h4>File Attachment:</h4>
+                                <ul>
+                                    <li><strong>Name:</strong> ${data.file_attachment.file_name || file.name}</li>
+                                    <li><strong>Type:</strong> ${data.file_attachment.file_type || file.type}</li>
+                                    <li><strong>Size:</strong> ${(data.file_attachment.file_size || file.size / 1024).toFixed(2)} KB</li>
+                                    ${data.file_attachment.file_url ? `<li><strong>URL:</strong> ${data.file_attachment.file_url}</li>` : ''}
+                                    <li><strong>Status:</strong> ${data.file_attachment.upload_state || 'unknown'}</li>
+                                </ul>
+                            </div>
+                        `;
+                    }
+                    
+                    // Add debug information
+                    resultHtml += `
                         <div class="debug-info">
                             <h4>Response Data:</h4>
                             <pre>${JSON.stringify(data, null, 2)}</pre>
                         </div>
+                        </div>
                     `;
-                    
-                    // Display task info - check all possible response formats
-                    let taskTitle = '';
-                    if (typeof data === 'object') {
-                        if (data.task) {
-                            taskTitle = data.task;
-                        } else if (data.title) {
-                            taskTitle = data.title;
-                        } else if (data.response && data.response.title) {
-                            taskTitle = data.response.title;
-                        } else if (data.todoist_response && data.todoist_response.title) {
-                            taskTitle = data.todoist_response.title;
-                        }
-                    } else if (typeof data === 'string') {
-                        taskTitle = data;
-                    }
-                    
-                    if (taskTitle) {
-                        resultHtml = `
-                            <h3 class="success">Success!</h3>
-                            <p><strong>Task:</strong> ${taskTitle}</p>
-                            <p><strong>Processing Time:</strong> ${processingTime} seconds</p>
-                            <div class="debug-info">
-                                <h4>Response Data:</h4>
-                                <pre>${JSON.stringify(data, null, 2)}</pre>
-                            </div>
-                        `;
-                    }
                     
                     document.getElementById('resultPanel').innerHTML = resultHtml;
                     
@@ -457,8 +468,10 @@
                             <h4>Anthropic Response:</h4>
                             <pre>${formatJSON(data.anthropic_response)}</pre>
                         `;
+                        addLog('Received Anthropic response', 'info');
                     } else {
                         document.getElementById('anthropicPanel').innerHTML = '<p>No detailed Anthropic response available</p>';
+                        addLog('No Anthropic response data available', 'warning');
                     }
                     
                     // Todoist response
@@ -467,11 +480,16 @@
                             <h4>Todoist Response:</h4>
                             <pre>${formatJSON(data.todoist_response)}</pre>
                         `;
+                        addLog('Received Todoist response', 'info');
                     } else {
                         document.getElementById('todoistPanel').innerHTML = '<p>No detailed Todoist response available</p>';
+                        addLog('No Todoist response data available', 'warning');
                     }
                     
-                    addLog(`Task processed successfully: ${taskTitle || 'Unknown task'}`, 'success');
+                    addLog(`Task "${data.title}" created successfully`, 'success');
+                    if (data.file_attachment) {
+                        addLog('File attachment processed', 'success');
+                    }
                 } else {
                     // Error handling
                     const errorMessage = data.error || data.message || 'An unknown error occurred';
