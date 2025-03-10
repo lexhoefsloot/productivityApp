@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 import base64
 import json
 import logging
@@ -10,29 +11,46 @@ from anthropic import Anthropic
 import httpx
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Ensure log directory exists
+# Ensure log directory exists with proper permissions
 LOG_DIR = '/var/log/screenshot_to_todoist'
-os.makedirs(LOG_DIR, exist_ok=True)
+try:
+    os.makedirs(LOG_DIR, exist_ok=True)
+    os.chmod(LOG_DIR, 0o755)
+except Exception as e:
+    print(f"Error creating log directory: {e}", file=sys.stderr)
+    sys.exit(1)
 
 # Configure logging with more detailed format
 logging.basicConfig(
-    level=logging.DEBUG,  # Change to DEBUG level
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
     handlers=[
         logging.FileHandler(os.path.join(LOG_DIR, "flask_app.log")),
-        logging.StreamHandler()
+        logging.StreamHandler(sys.stderr)
     ]
 )
 logger = logging.getLogger(__name__)
 
+# Load environment variables from .env file
+try:
+    logger.info("Loading environment variables")
+    load_dotenv()
+except Exception as e:
+    logger.error(f"Error loading .env file: {e}")
+    sys.exit(1)
+
 # Log startup information
 logger.info("Starting Screenshot to Todoist application")
-logger.info(f"Python version: {os.sys.version}")
-logger.info(f"Anthropic SDK Version: {anthropic.__version__}")
+logger.info(f"Python version: {sys.version}")
 logger.info(f"Working directory: {os.getcwd()}")
+
+try:
+    logger.info("Importing Anthropic")
+    import anthropic
+    logger.info(f"Anthropic SDK Version: {anthropic.__version__}")
+except Exception as e:
+    logger.error(f"Error importing Anthropic: {e}")
+    sys.exit(1)
 
 # Check for proxy settings in environment
 proxy_vars = ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY']
@@ -64,11 +82,11 @@ TODOIST_API_KEY = os.getenv("TODOIST_API_KEY")
 
 if not ANTHROPIC_API_KEY:
     logger.error("ANTHROPIC_API_KEY is not set in environment variables")
-    raise ValueError("ANTHROPIC_API_KEY is required")
+    sys.exit(1)
 
 if not TODOIST_API_KEY:
     logger.error("TODOIST_API_KEY is not set in environment variables")
-    raise ValueError("TODOIST_API_KEY is required")
+    sys.exit(1)
 
 # Initialize Anthropic client with proper configuration
 try:
@@ -79,7 +97,7 @@ except Exception as e:
     logger.error(f"Error initializing Anthropic client: {str(e)}")
     logger.error(f"Error type: {type(e).__name__}")
     logger.error(f"Traceback:\n{traceback.format_exc()}")
-    raise
+    sys.exit(1)
 
 # Claude prompt for task analysis
 CLAUDE_PROMPT = """

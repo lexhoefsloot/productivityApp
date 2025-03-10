@@ -3,10 +3,13 @@ Description=Screenshot to Todoist Flask Application
 After=network.target
 
 [Service]
-User=www-data
-Group=www-data
+User=root
+Group=root
 WorkingDirectory=/root/productivityApp
-Environment="PATH=/root/productivityApp/venv/bin"
+Environment="PATH=/root/productivityApp/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/root/productivityApp"
+Environment="FLASK_ENV=production"
+Environment="FLASK_DEBUG=0"
 ExecStart=/root/productivityApp/venv/bin/python /root/productivityApp/screenshot_to_todoist.py
 Restart=always
 RestartSec=5
