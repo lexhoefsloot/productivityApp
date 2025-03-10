@@ -1,0 +1,17 @@
+[Unit]
+Description=Screenshot to Todoist Flask Application
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/root/productivityApp
+Environment="PATH=/root/productivityApp/venv/bin"
+ExecStart=/root/productivityApp/venv/bin/python /root/productivityApp/screenshot_to_todoist.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/screenshot_to_todoist/flask_stdout.log
+StandardError=append:/var/log/screenshot_to_todoist/flask_stderr.log
+
+[Install]
+WantedBy=multi-user.target 

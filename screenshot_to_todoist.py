@@ -13,19 +13,26 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+# Ensure log directory exists
+LOG_DIR = '/var/log/screenshot_to_todoist'
+os.makedirs(LOG_DIR, exist_ok=True)
+
 # Configure logging with more detailed format
 logging.basicConfig(
     level=logging.DEBUG,  # Change to DEBUG level
     format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
     handlers=[
-        logging.FileHandler("screenshot_to_todoist.log"),
+        logging.FileHandler(os.path.join(LOG_DIR, "flask_app.log")),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
-# Log Anthropic SDK version
+# Log startup information
+logger.info("Starting Screenshot to Todoist application")
+logger.info(f"Python version: {os.sys.version}")
 logger.info(f"Anthropic SDK Version: {anthropic.__version__}")
+logger.info(f"Working directory: {os.getcwd()}")
 
 # Check for proxy settings in environment
 proxy_vars = ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY']
