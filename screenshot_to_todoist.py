@@ -4,7 +4,7 @@ import base64
 import json
 import logging
 import traceback
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, render_template_string
 import requests
 from anthropic import Anthropic
 import httpx
@@ -36,9 +36,32 @@ for var in proxy_vars:
 # Initialize Flask app
 app = Flask(__name__, static_folder='static')
 
+# Error handler for all exceptions
+@app.errorhandler(Exception)
+def handle_error(error):
+    logger.error(f"Unhandled error: {str(error)}")
+    logger.error(traceback.format_exc())
+    error_id = os.urandom(8).hex()
+    error_message = f"Error ID: {error_id}. Please check the application logs for more details."
+    if isinstance(error, httpx.TimeoutException):
+        return jsonify({"error": "Request timed out", "error_id": error_id}), 504
+    elif isinstance(error, httpx.ConnectError):
+        return jsonify({"error": "Could not connect to service", "error_id": error_id}), 502
+    elif isinstance(error, anthropic.APIError):
+        return jsonify({"error": f"Anthropic API error: {str(error)}", "error_id": error_id}), 502
+    return jsonify({"error": str(error), "error_id": error_id}), 500
+
 # Get API keys from environment variables
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 TODOIST_API_KEY = os.getenv("TODOIST_API_KEY")
+
+if not ANTHROPIC_API_KEY:
+    logger.error("ANTHROPIC_API_KEY is not set in environment variables")
+    raise ValueError("ANTHROPIC_API_KEY is required")
+
+if not TODOIST_API_KEY:
+    logger.error("TODOIST_API_KEY is not set in environment variables")
+    raise ValueError("TODOIST_API_KEY is required")
 
 # Initialize Anthropic client with proper configuration
 try:
@@ -70,13 +93,57 @@ def index():
 
 @app.route('/tester')
 def tester():
-    """Serve the tester.html file"""
-    return send_from_directory(app.static_folder, 'tester.html')
+    """Serve the tester.html file with proper error handling"""
+    try:
+        return send_from_directory(app.static_folder, 'tester.html')
+    except Exception as e:
+        logger.error(f"Error serving tester page: {str(e)}")
+        error_id = os.urandom(8).hex()
+        return render_template_string("""
+            <html>
+                <head>
+                    <title>Error</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 40px; }
+                        .error { color: #721c24; background-color: #f8d7da; padding: 20px; border-radius: 5px; }
+                        .error-id { color: #666; font-size: 0.9em; margin-top: 10px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="error">
+                        <h2>Application Error</h2>
+                        <p>{{ error_message }}</p>
+                        <p class="error-id">Error ID: {{ error_id }}</p>
+                    </div>
+                </body>
+            </html>
+        """, error_message=str(e), error_id=error_id), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Simple health check endpoint"""
-    return jsonify({"status": "healthy"}), 200
+    """Enhanced health check endpoint"""
+    try:
+        # Check if we can create a test message with Anthropic
+        client.messages.create(
+            model="claude-3-sonnet-20240229",
+            max_tokens=10,
+            messages=[{
+                "role": "user",
+                "content": "test"
+            }]
+        )
+        return jsonify({
+            "status": "healthy",
+            "anthropic": "connected",
+            "version": anthropic.__version__
+        }), 200
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e),
+            "version": anthropic.__version__
+        }), 500
 
 @app.route('/process-screenshot', methods=['POST'])
 def process_screenshot():
