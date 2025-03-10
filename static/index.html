@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screenshot to Todoist Tester</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+        }
+        button {
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0055aa;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            min-height: 100px;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+        #loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #0066cc;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Screenshot to Todoist Tester</h1>
+    
+    <div class="container">
+        <h2>Upload a Screenshot</h2>
+        <p>Use this form to test the Screenshot to Todoist service. Upload an image, and it will be processed by Claude Vision API and added to your Todoist.</p>
+        
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="imageFile">Select an image:</label>
+                <input type="file" id="imageFile" name="image" accept="image/*" required>
+            </div>
+            
+            <button type="submit">Process Screenshot</button>
+        </form>
+        
+        <div id="loading">
+            <div class="spinner"></div>
+            <p>Processing your image...</p>
+        </div>
+        
+        <div id="result">
+            <p>Results will appear here...</p>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('imageFile');
+            const resultDiv = document.getElementById('result');
+            const loadingDiv = document.getElementById('loading');
+            
+            // Check if a file was selected
+            if (!fileInput.files.length) {
+                resultDiv.innerHTML = '<p class="error">Please select an image file.</p>';
+                return;
+            }
+            
+            // Create FormData object
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+            
+            // Show loading spinner
+            loadingDiv.style.display = 'block';
+            resultDiv.innerHTML = '';
+            
+            try {
+                // Send the request to the server
+                const response = await fetch('/process-screenshot', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                // Parse the JSON response
+                const data = await response.json();
+                
+                // Hide loading spinner
+                loadingDiv.style.display = 'none';
+                
+                // Display the result
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <h3 class="success">Success!</h3>
+                        <p><strong>Task:</strong> ${data.task}</p>
+                        <p><strong>Todoist Response:</strong></p>
+                        <pre>${JSON.stringify(data.todoist_response, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <h3 class="error">Error</h3>
+                        <p>${data.error || 'An unknown error occurred.'}</p>
+                    `;
+                }
+            } catch (error) {
+                // Hide loading spinner
+                loadingDiv.style.display = 'none';
+                
+                // Display error message
+                resultDiv.innerHTML = `
+                    <h3 class="error">Error</h3>
+                    <p>Failed to communicate with the server: ${error.message}</p>
+                `;
+            }
+        });
+    </script>
+</body>
+</html> 
