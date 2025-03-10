@@ -54,6 +54,17 @@
             border-radius: 4px;
             background-color: white;
         }
+        .form-control {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+            font-family: inherit;
+            font-size: inherit;
+            resize: vertical;
+        }
         button {
             background-color: #0066cc;
             color: white;
@@ -209,6 +220,11 @@
                 <div class="form-group">
                     <label for="imageFile">Select an image:</label>
                     <input type="file" id="imageFile" name="image" accept="image/*" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="additionalInstructions">Additional Instructions for Claude (optional):</label>
+                    <textarea id="additionalInstructions" name="additional_instructions" class="form-control" rows="3" placeholder="Enter any additional instructions for Claude. These will be included in the prompt."></textarea>
                 </div>
                 
                 <div class="form-group">
@@ -377,6 +393,13 @@
             formData.append('file_name', file.name);
             formData.append('file_type', file.type);
             formData.append('file_size', file.size);
+            
+            // Add additional instructions if provided
+            const additionalInstructions = document.getElementById('additionalInstructions').value;
+            if (additionalInstructions) {
+                formData.append('additional_instructions', additionalInstructions);
+                addLog(`Additional instructions: ${additionalInstructions}`, 'info');
+            }
             
             // Show processing indicator
             submitButton.disabled = true;

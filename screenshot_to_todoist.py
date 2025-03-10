@@ -113,11 +113,14 @@ except Exception as e:
 # Claude prompt for task analysis
 CLAUDE_PROMPT = """
 Below is a screenshot of something that needs to be turned into a task that I need to do and I want to add to my todo list. Please analyze the image and determine the task's title in no more than 5-7 words. Also, estimate the required time to complete this task and express it in a two-digit format where the first digit is the number of hours and the second digit is the number of tens of minutes (e.g., '02' means 0 hours and 20 minutes). Return your answer strictly in the following format:
+Here are some additional instructions that you can use to help you:
+{additional_instructions}
 
 XY: *Title of Task*
 
 For example, if the task takes 20 minutes and is 'Buy groceries', you should output:
 02: Buy groceries
+
 
 Now, please analyze the following image and provide the result.
 """
@@ -191,12 +194,18 @@ def process_screenshot():
     4. Create task in Todoist with image attachment
     5. Return result
     
-    Query parameter:
+    Query parameters:
     - debug: If set to 'true', returns detailed debug information
+    - additional_instructions: Optional additional instructions to include in the prompt
     """
     try:
         # Check if in debug mode
         debug_mode = request.args.get('debug', 'false').lower() == 'true' or request.form.get('debug', 'false').lower() == 'true'
+        
+        # Get additional instructions if provided
+        additional_instructions = request.args.get('additional_instructions', '') or request.form.get('additional_instructions', '')
+        if additional_instructions:
+            logger.info(f"Additional instructions received: {additional_instructions}")
         
         # Check if the request contains an image
         if 'image' not in request.files:
@@ -228,7 +237,7 @@ def process_screenshot():
         
         # Call Claude Vision API
         logger.info("Calling Claude Vision API")
-        task_info, anthropic_response = analyze_image_with_claude(base64_image, mime_type)
+        task_info, anthropic_response = analyze_image_with_claude(base64_image, mime_type, additional_instructions)
         
         # Create task in Todoist with the original image data
         logger.info(f"Creating Todoist task: {task_info}")
@@ -286,46 +295,56 @@ def process_screenshot():
         logger.error(f"Error processing screenshot: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-def analyze_image_with_claude(base64_image, mime_type):
+def analyze_image_with_claude(base64_image, mime_type, additional_instructions=''):
     """
-    Send the image to Claude Vision API and get the task information
+    Send the image to Claude Vision API for analysis
+    Returns the task information and the full response from Claude
     """
     try:
-        # Create the message with the image
-        message = client.messages.create(
-            model="claude-3-sonnet-20240229",
-            max_tokens=1024,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": mime_type,
-                            "data": base64_image
-                        }
-                    },
-                    {
-                        "type": "text",
-                        "text": CLAUDE_PROMPT
+        # Format prompt with additional instructions if provided
+        formatted_prompt = CLAUDE_PROMPT.format(
+            additional_instructions=additional_instructions if additional_instructions else ""
+        )
+        
+        # Prepare the request to Claude
+        messages = [{
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": formatted_prompt
+                },
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": mime_type,
+                        "data": base64_image
                     }
-                ]
-            }]
+                }
+            ]
+        }]
+        
+        # Call Claude API
+        logger.debug("Sending request to Claude API")
+        response = client.messages.create(
+            model="claude-3-sonnet-20240229",
+            max_tokens=300,
+            messages=messages
         )
         
         # Extract the response text
-        response_text = message.content[0].text
+        response_text = response.content[0].text
         
         # Store the full response for debugging
         anthropic_response = {
-            "model": message.model,
-            "id": message.id,
-            "role": message.role,
+            "model": response.model,
+            "id": response.id,
+            "role": "assistant",
             "content": response_text,
             "usage": {
-                "input_tokens": message.usage.input_tokens,
-                "output_tokens": message.usage.output_tokens
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens
             }
         }
         
@@ -344,6 +363,7 @@ def analyze_image_with_claude(base64_image, mime_type):
             logger.warning(f"Claude response didn't match expected format: {response_text}")
             task_info = response_text.strip()
         
+        logger.info(f"Extracted task info from Claude: {task_info}")
         return task_info, anthropic_response
         
     except Exception as e:
