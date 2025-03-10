@@ -6,6 +6,7 @@ import logging
 from flask import Flask, request, jsonify, send_from_directory
 import requests
 import anthropic
+import httpx
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -29,18 +30,18 @@ app = Flask(__name__, static_folder='static')
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 TODOIST_API_KEY = os.getenv("TODOIST_API_KEY")
 
-# Initialize Anthropic client - fix for compatibility issue
+# Initialize Anthropic client with proper configuration
 try:
-    # Try the standard initialization first
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-except TypeError as e:
-    if "unexpected keyword argument 'proxies'" in str(e):
-        # If there's a proxies error, try without any additional parameters
-        logger.warning("Detected incompatibility with Anthropic client. Using alternative initialization.")
-        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    else:
-        # If it's a different error, re-raise it
-        raise
+    client = anthropic.Anthropic(
+        api_key=ANTHROPIC_API_KEY,
+        http_client=anthropic.DefaultHttpxClient(
+            timeout=60.0,  # Increase timeout to 60 seconds
+            limits=httpx.Limits(max_retries=3),  # Add retries
+        ),
+    )
+except Exception as e:
+    logger.error(f"Error initializing Anthropic client: {str(e)}")
+    raise
 
 # Claude prompt for task analysis
 CLAUDE_PROMPT = """
@@ -117,7 +118,7 @@ def analyze_image_with_claude(base64_image, mime_type):
     try:
         # Create the message with the image
         message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",  # Use the latest Claude model with vision capabilities
+            model="claude-3-sonnet-20240229",  # Use the latest Claude model with vision capabilities
             max_tokens=1024,
             messages=[
                 {
