@@ -10,6 +10,8 @@ import requests
 from anthropic import Anthropic
 import httpx
 from dotenv import load_dotenv
+import io
+import time
 
 # Ensure log directory exists with proper permissions
 LOG_DIR = '/var/log/screenshot_to_todoist'
@@ -186,7 +188,7 @@ def process_screenshot():
     1. Receive image from iOS Shortcut
     2. Send to Claude Vision API
     3. Parse response
-    4. Create task in Todoist
+    4. Create task in Todoist with image attachment
     5. Return result
     """
     try:
@@ -212,7 +214,7 @@ def process_screenshot():
         
         # Create task in Todoist
         logger.info(f"Creating Todoist task: {task_info}")
-        todoist_response = create_todoist_task(task_info)
+        todoist_response = create_todoist_task(task_info, image_data, mime_type)
         
         # Extract the title from the task (remove any time estimate at the beginning if present)
         task_title = task_info
@@ -220,11 +222,17 @@ def process_screenshot():
             task_title = task_info[4:].strip()
         
         # Return simplified success response
-        return jsonify({
+        response_data = {
             "status": "success",
             "title": task_title,
             "task_created": True
-        }), 200
+        }
+        
+        # Add file attachment info if available
+        if "file_attachment" in todoist_response:
+            response_data["file_attached"] = True
+            
+        return jsonify(response_data), 200
         
     except Exception as e:
         logger.error(f"Error processing screenshot: {str(e)}", exc_info=True)
@@ -294,13 +302,14 @@ def analyze_image_with_claude(base64_image, mime_type):
         logger.error(f"Error calling Claude API: {str(e)}", exc_info=True)
         raise Exception(f"Failed to analyze image with Claude: {str(e)}")
 
-def create_todoist_task(task_info):
+def create_todoist_task(task_info, image_data=None, mime_type=None):
     """
     Create a task in Todoist with the given information
+    If image_data is provided, attach it to the task
     """
     try:
-        # Todoist API endpoint
-        url = "https://api.todoist.com/rest/v2/tasks"
+        # Todoist API endpoint for tasks
+        task_url = "https://api.todoist.com/rest/v2/tasks"
         
         # Headers with authentication
         headers = {
@@ -309,21 +318,89 @@ def create_todoist_task(task_info):
         }
         
         # Task data
-        data = {
+        task_data = {
             "content": task_info,
             "due_string": "today"  # Default due date is today
         }
         
         # Make the request to create the task
-        response = requests.post(url, headers=headers, json=data)
+        task_response = requests.post(task_url, headers=headers, json=task_data)
         
         # Check if the request was successful
-        if response.status_code == 200:
-            return response.json()
-        else:
-            error_msg = f"Todoist API error: {response.status_code} - {response.text}"
+        if task_response.status_code != 200:
+            error_msg = f"Todoist API error: {task_response.status_code} - {task_response.text}"
             logger.error(error_msg)
             raise Exception(error_msg)
+            
+        task = task_response.json()
+        
+        # If image data is provided, upload it and attach to the task
+        if image_data:
+            logger.info("Uploading image to Todoist")
+            
+            # Convert image_data to the correct format for upload
+            # If it's base64, decode it first
+            if isinstance(image_data, str) and image_data.startswith("data:") or "base64" in image_data:
+                # Extract the actual base64 content
+                image_data = image_data.split("base64,")[1] if "base64," in image_data else image_data
+                image_data = base64.b64decode(image_data)
+            
+            # Prepare the file upload
+            upload_url = "https://api.todoist.com/sync/v8/uploads/add"
+            upload_headers = {
+                "Authorization": f"Bearer {TODOIST_API_KEY}"
+            }
+            
+            # Set a default filename and mime type if not provided
+            filename = f"screenshot_{int(time.time())}.jpg"
+            if not mime_type:
+                mime_type = "image/jpeg"
+            
+            # Create a file-like object from the image data
+            file_obj = io.BytesIO(image_data)
+            
+            # Create the multipart/form-data payload
+            files = {
+                'file': (filename, file_obj, mime_type)
+            }
+            
+            # Upload the file to Todoist
+            upload_response = requests.post(upload_url, headers=upload_headers, files=files)
+            
+            if upload_response.status_code != 200:
+                logger.error(f"Error uploading file to Todoist: {upload_response.status_code} - {upload_response.text}")
+                return task
+            
+            # Get the upload details
+            upload_data = upload_response.json()
+            file_url = upload_data.get("file_url")
+            file_attachment = upload_data.get("file_attachment")
+            
+            if file_url and file_attachment:
+                logger.info(f"File uploaded successfully, URL: {file_url}")
+                
+                # Add a comment with the file attachment to the task
+                comment_url = f"https://api.todoist.com/rest/v2/comments"
+                comment_data = {
+                    "task_id": task["id"],
+                    "attachment": {
+                        "resource_type": "file",
+                        "file_url": file_url,
+                        "file_type": mime_type,
+                        "file_name": filename
+                    }
+                }
+                
+                comment_response = requests.post(comment_url, headers=headers, json=comment_data)
+                
+                if comment_response.status_code != 200:
+                    logger.error(f"Error attaching file to task: {comment_response.status_code} - {comment_response.text}")
+                else:
+                    logger.info("File attached to task successfully")
+                    # Add comment info to the task response
+                    task["file_attachment"] = comment_response.json()
+        
+        return task
             
     except Exception as e:
         logger.error(f"Error creating Todoist task: {str(e)}", exc_info=True)
