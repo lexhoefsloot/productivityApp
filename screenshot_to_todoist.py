@@ -214,12 +214,16 @@ def process_screenshot():
         logger.info(f"Creating Todoist task: {task_info}")
         todoist_response = create_todoist_task(task_info)
         
-        # Return success response
+        # Extract the title from the task (remove any time estimate at the beginning if present)
+        task_title = task_info
+        if ": " in task_info and len(task_info) >= 5 and task_info[0].isdigit() and task_info[1].isdigit():
+            task_title = task_info[4:].strip()
+        
+        # Return simplified success response
         return jsonify({
             "status": "success",
-            "task": task_info,
-            "anthropic_response": anthropic_response,
-            "todoist_response": todoist_response
+            "title": task_title,
+            "task_created": True
         }), 200
         
     except Exception as e:

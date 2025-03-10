@@ -404,7 +404,7 @@
                     // Main result
                     document.getElementById('resultPanel').innerHTML = `
                         <h3 class="success">Success!</h3>
-                        <p><strong>Task:</strong> ${data.task}</p>
+                        <p><strong>Task:</strong> ${data.title}</p>
                         <p><strong>Processing Time:</strong> ${processingTime} seconds</p>
                     `;
                     
@@ -416,9 +416,13 @@
                     }
                     
                     // Todoist response
-                    document.getElementById('todoistPanel').innerHTML = formatJSON(data.todoist_response);
+                    if (data.todoist_response) {
+                        document.getElementById('todoistPanel').innerHTML = formatJSON(data.todoist_response);
+                    } else {
+                        document.getElementById('todoistPanel').innerHTML = '<p>No detailed Todoist response available</p>';
+                    }
                     
-                    addLog(`Task created: ${data.task}`, 'success');
+                    addLog(`Task created: ${data.title}`, 'success');
                 } else {
                     document.getElementById('resultPanel').innerHTML = `
                         <h3 class="error">Error</h3>
