@@ -32,10 +32,8 @@ TODOIST_API_KEY = os.getenv("TODOIST_API_KEY")
 
 # Initialize Anthropic client with proper configuration
 try:
-    client = anthropic.Anthropic(
-        api_key=ANTHROPIC_API_KEY,
-        max_retries=3,  # Add retries
-        timeout=60.0,  # Increase timeout to 60 seconds
+    client = anthropic.Client(
+        api_key=ANTHROPIC_API_KEY
     )
 except Exception as e:
     logger.error(f"Error initializing Anthropic client: {str(e)}")
@@ -122,27 +120,25 @@ def analyze_image_with_claude(base64_image, mime_type):
     try:
         # Create the message with the image
         message = client.messages.create(
-            model="claude-3-sonnet-20240229",  # Use the latest Claude model with vision capabilities
+            model="claude-3-sonnet-20240229",
             max_tokens=1024,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": mime_type,
-                                "data": base64_image,
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": CLAUDE_PROMPT
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": mime_type,
+                            "data": base64_image
                         }
-                    ],
-                }
-            ],
+                    },
+                    {
+                        "type": "text",
+                        "text": CLAUDE_PROMPT
+                    }
+                ]
+            }]
         )
         
         # Extract the response text
