@@ -482,9 +482,8 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                 # Get the upload details
                 upload_data = upload_response.json()
                 file_url = upload_data.get("file_url")
-                file_attachment = upload_data.get("file_attachment")
                 
-                if file_url and file_attachment:
+                if file_url:
                     logger.info(f"File uploaded successfully via Sync API, URL: {file_url}")
                     
                     # Add a comment with the file attachment to the task
@@ -495,7 +494,7 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                             "resource_type": "file",
                             "file_url": file_url,
                             "file_type": mime_type,
-                            "file_name": filename
+                            "file_name": upload_data.get("file_name", filename)
                         }
                     }
                     
@@ -513,7 +512,7 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                         # Add comment info to the task response
                         task["file_attachment"] = comment_response.json()
                 else:
-                    logger.error(f"File upload succeeded but missing required data. Response: {upload_data}")
+                    logger.error(f"File upload succeeded but missing file_url. Response: {upload_data}")
             except Exception as e:
                 logger.error(f"Error with Sync API upload: {str(e)}", exc_info=True)
         else:
