@@ -190,8 +190,14 @@ def process_screenshot():
     3. Parse response
     4. Create task in Todoist with image attachment
     5. Return result
+    
+    Query parameter:
+    - debug: If set to 'true', returns detailed debug information
     """
     try:
+        # Check if in debug mode
+        debug_mode = request.args.get('debug', 'false').lower() == 'true'
+        
         # Check if the request contains an image
         if 'image' not in request.files:
             logger.error("No image file in request")
@@ -226,20 +232,36 @@ def process_screenshot():
         if ": " in task_info and len(task_info) >= 5 and task_info[0].isdigit() and task_info[1].isdigit():
             task_title = task_info[4:].strip()
         
-        # Return simplified success response
-        response_data = {
-            "status": "success",
-            "title": task_title,
-            "task_created": True
-        }
-        
-        # Add file attachment info if available
-        if "file_attachment" in todoist_response:
-            response_data["file_attached"] = True
-            response_data["attachment_details"] = {
-                "comment_id": todoist_response["file_attachment"].get("id"),
-                "task_id": todoist_response["id"]
+        # Prepare response data
+        if debug_mode:
+            # Return detailed response for debugging
+            response_data = {
+                "status": "success",
+                "task": task_info,
+                "title": task_title,
+                "anthropic_response": anthropic_response,
+                "todoist_response": todoist_response,
+                "task_created": True
             }
+            
+            # Add file attachment info if available
+            if "file_attachment" in todoist_response:
+                response_data["file_attached"] = True
+                response_data["attachment_details"] = {
+                    "comment_id": todoist_response["file_attachment"].get("id"),
+                    "task_id": todoist_response["id"]
+                }
+        else:
+            # Return simplified response for regular use
+            response_data = {
+                "status": "success",
+                "title": task_title,
+                "task_created": True
+            }
+            
+            # Add file attachment info if available
+            if "file_attachment" in todoist_response:
+                response_data["file_attached"] = True
             
         return jsonify(response_data), 200
         

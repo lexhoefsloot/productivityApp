@@ -378,11 +378,11 @@
             addLog('Starting processing...', 'info');
             
             try {
-                // Send the request to the server
-                addLog('Sending request to server...', 'info');
+                // Send the request to the server with debug=true
+                addLog('Sending request to server in debug mode...', 'info');
                 const startTime = performance.now();
                 
-                const response = await fetch('./process-screenshot', {
+                const response = await fetch('./process-screenshot?debug=true', {
                     method: 'POST',
                     body: formData
                 });
@@ -402,11 +402,23 @@
                 // Display the result
                 if (response.ok) {
                     // Main result
-                    document.getElementById('resultPanel').innerHTML = `
+                    let resultHtml = `
                         <h3 class="success">Success!</h3>
-                        <p><strong>Task:</strong> ${data.title}</p>
+                        <p><strong>Task:</strong> ${data.task || data.title}</p>
                         <p><strong>Processing Time:</strong> ${processingTime} seconds</p>
                     `;
+                    
+                    // Add file attachment info if available
+                    if (data.file_attached) {
+                        resultHtml += `<p class="success"><strong>File Attached:</strong> Yes</p>`;
+                        if (data.attachment_details) {
+                            resultHtml += `<p><strong>Attachment ID:</strong> ${data.attachment_details.comment_id}</p>`;
+                        }
+                    } else {
+                        resultHtml += `<p class="warning"><strong>File Attached:</strong> No</p>`;
+                    }
+                    
+                    document.getElementById('resultPanel').innerHTML = resultHtml;
                     
                     // Anthropic response
                     if (data.anthropic_response) {
@@ -422,7 +434,11 @@
                         document.getElementById('todoistPanel').innerHTML = '<p>No detailed Todoist response available</p>';
                     }
                     
-                    addLog(`Task created: ${data.title}`, 'success');
+                    const taskDisplay = data.task || data.title;
+                    addLog(`Task created: ${taskDisplay}`, 'success');
+                    if (data.file_attached) {
+                        addLog('File attachment added to task', 'success');
+                    }
                 } else {
                     document.getElementById('resultPanel').innerHTML = `
                         <h3 class="error">Error</h3>
