@@ -57,7 +57,7 @@ Description=Screenshot to Todoist Service
 After=network.target
 
 [Service]
-User=$(whoami)
+User=root
 WorkingDirectory=$(pwd)
 ExecStart=$(pwd)/venv/bin/gunicorn -w 4 -b 0.0.0.0:5000 screenshot_to_todoist:app
 Restart=always
@@ -72,10 +72,10 @@ read install_service
 
 if [ "$install_service" = "y" ]; then
     echo "Installing systemd service..."
-    sudo cp screenshot_to_todoist.service /etc/systemd/system/
-    sudo systemctl daemon-reload
-    sudo systemctl enable screenshot_to_todoist
-    sudo systemctl start screenshot_to_todoist
+    cp screenshot_to_todoist.service /etc/systemd/system/
+    systemctl daemon-reload
+    systemctl enable screenshot_to_todoist
+    systemctl start screenshot_to_todoist
     echo "Systemd service installed and started."
 else
     echo "Skipping systemd service installation."
@@ -90,7 +90,7 @@ if [ "$install_apache" = "y" ]; then
     chmod +x install_apache_config.sh
     
     echo "Running the Apache installation script..."
-    sudo ./install_apache_config.sh
+    ./install_apache_config.sh
 else
     echo "Skipping Apache configuration installation."
 fi

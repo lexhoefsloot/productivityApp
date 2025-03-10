@@ -34,10 +34,8 @@ TODOIST_API_KEY = os.getenv("TODOIST_API_KEY")
 try:
     client = anthropic.Anthropic(
         api_key=ANTHROPIC_API_KEY,
-        http_client=anthropic.DefaultHttpxClient(
-            timeout=60.0,  # Increase timeout to 60 seconds
-            limits=httpx.Limits(max_retries=3),  # Add retries
-        ),
+        max_retries=3,  # Add retries
+        timeout=60.0,  # Increase timeout to 60 seconds
     )
 except Exception as e:
     logger.error(f"Error initializing Anthropic client: {str(e)}")
