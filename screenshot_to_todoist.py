@@ -490,6 +490,7 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                     comment_url = "https://api.todoist.com/rest/v2/comments"
                     comment_data = {
                         "task_id": task["id"],
+                        "content": "",  # Empty content but required by the API
                         "attachment": {
                             "resource_type": "file",
                             "file_url": file_url,
