@@ -301,9 +301,13 @@ def analyze_image_with_claude(base64_image, mime_type, additional_instructions='
     Returns the task information and the full response from Claude
     """
     try:
-        # Format prompt with additional instructions if provided
+        # Handle empty additional instructions with a default message
+        if not additional_instructions or additional_instructions.strip() == '':
+            additional_instructions = "no additional instructions"
+        
+        # Format prompt with additional instructions
         formatted_prompt = CLAUDE_PROMPT.format(
-            additional_instructions=additional_instructions if additional_instructions else ""
+            additional_instructions=additional_instructions
         )
         
         # Prepare the request to Claude
