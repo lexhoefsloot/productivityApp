@@ -494,8 +494,10 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                         "task_id": task["id"],
                         "content": "Screenshot attachment",  # Adding a meaningful content message
                         "attachment": {
-                            "resource_type": "file",
-                            "file_url": file_url
+                            "resource_type": "image",  # Changed from "file" to "image"
+                            "file_url": file_url,
+                            "file_name": upload_data.get("file_name", filename),
+                            "file_type": upload_data.get("file_type", mime_type)
                         }
                     }
                     
