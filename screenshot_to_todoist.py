@@ -3,6 +3,7 @@ import os
 import base64
 import json
 import logging
+import traceback
 from flask import Flask, request, jsonify, send_from_directory
 import requests
 import anthropic
@@ -12,16 +13,25 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Configure logging
+# Configure logging with more detailed format
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.DEBUG,  # Change to DEBUG level
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
     handlers=[
         logging.FileHandler("screenshot_to_todoist.log"),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Log Anthropic SDK version
+logger.info(f"Anthropic SDK Version: {anthropic.__version__}")
+
+# Check for proxy settings in environment
+proxy_vars = ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY']
+for var in proxy_vars:
+    if var in os.environ:
+        logger.warning(f"Found proxy setting in environment: {var}={os.environ[var]}")
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static')
@@ -32,11 +42,13 @@ TODOIST_API_KEY = os.getenv("TODOIST_API_KEY")
 
 # Initialize Anthropic client with proper configuration
 try:
-    client = anthropic.Client(
-        api_key=ANTHROPIC_API_KEY
-    )
+    logger.debug("Attempting to initialize Anthropic client...")
+    client = anthropic.Client(api_key=ANTHROPIC_API_KEY)
+    logger.info("Successfully initialized Anthropic client")
 except Exception as e:
     logger.error(f"Error initializing Anthropic client: {str(e)}")
+    logger.error(f"Error type: {type(e).__name__}")
+    logger.error(f"Traceback:\n{traceback.format_exc()}")
     raise
 
 # Claude prompt for task analysis
