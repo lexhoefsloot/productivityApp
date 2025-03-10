@@ -198,11 +198,16 @@ def process_screenshot():
             return jsonify({"error": "No image file provided"}), 400
         
         image_file = request.files['image']
+        logger.info(f"Received image: {image_file.filename}, type: {image_file.content_type}")
         
-        # Read the image data
+        # Read the image data as bytes
         image_data = image_file.read()
+        logger.info(f"Read {len(image_data)} bytes of image data")
         
-        # Convert image to base64
+        # Store the original image data for file attachment
+        original_image_data = image_data
+        
+        # Convert image to base64 for Claude
         base64_image = base64.b64encode(image_data).decode('utf-8')
         
         # Get the image MIME type
@@ -212,9 +217,9 @@ def process_screenshot():
         logger.info("Calling Claude Vision API")
         task_info, anthropic_response = analyze_image_with_claude(base64_image, mime_type)
         
-        # Create task in Todoist
+        # Create task in Todoist with the original image data
         logger.info(f"Creating Todoist task: {task_info}")
-        todoist_response = create_todoist_task(task_info, image_data, mime_type)
+        todoist_response = create_todoist_task(task_info, original_image_data, mime_type)
         
         # Extract the title from the task (remove any time estimate at the beginning if present)
         task_title = task_info
@@ -231,6 +236,10 @@ def process_screenshot():
         # Add file attachment info if available
         if "file_attachment" in todoist_response:
             response_data["file_attached"] = True
+            response_data["attachment_details"] = {
+                "comment_id": todoist_response["file_attachment"].get("id"),
+                "task_id": todoist_response["id"]
+            }
             
         return jsonify(response_data), 200
         
@@ -333,78 +342,135 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
             raise Exception(error_msg)
             
         task = task_response.json()
+        logger.info(f"Task created successfully with ID: {task['id']}")
         
         # If image data is provided, upload it and attach to the task
         if image_data:
-            logger.info("Uploading image to Todoist")
+            logger.info(f"Attempting to upload image to Todoist (data length: {len(image_data)} bytes)")
             
             # Convert image_data to the correct format for upload
             # If it's already bytes, use it directly
             if isinstance(image_data, bytes):
+                logger.debug("Image data is already in bytes format")
                 binary_data = image_data
             # If it's base64 string, decode it
             elif isinstance(image_data, str) and ('base64' in image_data or image_data.startswith('data:')):
+                logger.debug("Converting base64 string to binary data")
                 # Extract the actual base64 content
                 base64_content = image_data.split("base64,")[1] if "base64," in image_data else image_data
                 binary_data = base64.b64decode(base64_content)
             else:
-                logger.error("Image data is not in a recognized format")
+                logger.error(f"Image data is not in a recognized format: {type(image_data)}")
                 return task
             
-            # Prepare the file upload
-            upload_url = "https://api.todoist.com/sync/v8/uploads/add"
-            upload_headers = {
-                "Authorization": f"Bearer {TODOIST_API_KEY}"
-            }
+            logger.debug(f"Binary data prepared, length: {len(binary_data)} bytes")
             
-            # Set a default filename and mime type if not provided
-            filename = f"screenshot_{int(time.time())}.jpg"
-            if not mime_type:
-                mime_type = "image/jpeg"
-            
-            # Create a file-like object from the image data
-            file_obj = io.BytesIO(binary_data)
-            
-            # Create the multipart/form-data payload
-            files = {
-                'file': (filename, file_obj, mime_type)
-            }
-            
-            # Upload the file to Todoist
-            upload_response = requests.post(upload_url, headers=upload_headers, files=files)
-            
-            if upload_response.status_code != 200:
-                logger.error(f"Error uploading file to Todoist: {upload_response.status_code} - {upload_response.text}")
-                return task
-            
-            # Get the upload details
-            upload_data = upload_response.json()
-            file_url = upload_data.get("file_url")
-            file_attachment = upload_data.get("file_attachment")
-            
-            if file_url and file_attachment:
-                logger.info(f"File uploaded successfully, URL: {file_url}")
-                
-                # Add a comment with the file attachment to the task
-                comment_url = f"https://api.todoist.com/rest/v2/comments"
-                comment_data = {
-                    "task_id": task["id"],
-                    "attachment": {
-                        "resource_type": "file",
-                        "file_url": file_url,
-                        "file_type": mime_type,
-                        "file_name": filename
-                    }
+            # Try using the REST API first (v2)
+            try:
+                # REST API for file uploads
+                upload_url = "https://api.todoist.com/rest/v2/attachments"
+                upload_headers = {
+                    "Authorization": f"Bearer {TODOIST_API_KEY}"
                 }
                 
-                comment_response = requests.post(comment_url, headers=headers, json=comment_data)
+                # Set a default filename and mime type if not provided
+                filename = f"screenshot_{int(time.time())}.jpg"
+                if not mime_type:
+                    mime_type = "image/jpeg"
                 
-                if comment_response.status_code != 200:
-                    logger.error(f"Error attaching file to task: {comment_response.status_code} - {comment_response.text}")
+                logger.debug(f"Uploading with filename: {filename}, mime_type: {mime_type}")
+                
+                # Create a file-like object from the image data
+                file_obj = io.BytesIO(binary_data)
+                
+                # Create the multipart/form-data payload
+                files = {
+                    'file': (filename, file_obj, mime_type)
+                }
+                
+                # Upload the file to Todoist REST API
+                upload_response = requests.post(
+                    upload_url, 
+                    headers=upload_headers, 
+                    files=files,
+                    params={"task_id": task["id"]}
+                )
+                
+                logger.debug(f"Upload response status: {upload_response.status_code}")
+                logger.debug(f"Upload response body: {upload_response.text}")
+                
+                if upload_response.status_code in (200, 201):
+                    logger.info("File uploaded successfully via REST API")
+                    attachment_data = upload_response.json()
+                    task["file_attachment"] = attachment_data
+                    return task
                 else:
-                    logger.info("File attached to task successfully")
-                    # Add comment info to the task response
-                    task["file_attachment"] = comment_response.json()
+                    logger.warning(f"REST API upload failed, trying Sync API...")
+            except Exception as e:
+                logger.error(f"Error with REST API upload: {str(e)}")
+                logger.warning("Falling back to Sync API...")
+            
+            # If REST API failed, try the Sync API (v8)
+            try:
+                # Sync API for file uploads
+                upload_url = "https://api.todoist.com/sync/v9/uploads/add"
+                upload_headers = {
+                    "Authorization": f"Bearer {TODOIST_API_KEY}"
+                }
+                
+                # Create a file-like object from the image data
+                file_obj = io.BytesIO(binary_data)
+                
+                # Create the multipart/form-data payload
+                files = {
+                    'file': (filename, file_obj, mime_type)
+                }
+                
+                # Upload the file to Todoist Sync API
+                upload_response = requests.post(upload_url, headers=upload_headers, files=files)
+                
+                logger.debug(f"Sync API upload response status: {upload_response.status_code}")
+                logger.debug(f"Sync API upload response body: {upload_response.text}")
+                
+                if upload_response.status_code != 200:
+                    logger.error(f"Error uploading file with Sync API: {upload_response.status_code} - {upload_response.text}")
+                    return task
+                
+                # Get the upload details
+                upload_data = upload_response.json()
+                file_url = upload_data.get("file_url")
+                file_attachment = upload_data.get("file_attachment")
+                
+                if file_url and file_attachment:
+                    logger.info(f"File uploaded successfully via Sync API, URL: {file_url}")
+                    
+                    # Add a comment with the file attachment to the task
+                    comment_url = "https://api.todoist.com/rest/v2/comments"
+                    comment_data = {
+                        "task_id": task["id"],
+                        "attachment": {
+                            "resource_type": "file",
+                            "file_url": file_url,
+                            "file_type": mime_type,
+                            "file_name": filename
+                        }
+                    }
+                    
+                    logger.debug(f"Attaching file to task with comment data: {comment_data}")
+                    
+                    comment_response = requests.post(comment_url, headers=headers, json=comment_data)
+                    
+                    logger.debug(f"Comment response status: {comment_response.status_code}")
+                    logger.debug(f"Comment response body: {comment_response.text}")
+                    
+                    if comment_response.status_code != 200:
+                        logger.error(f"Error attaching file to task: {comment_response.status_code} - {comment_response.text}")
+                    else:
+                        logger.info("File attached to task successfully")
+                        # Add comment info to the task response
+                        task["file_attachment"] = comment_response.json()
+            except Exception as e:
+                logger.error(f"Error with Sync API upload: {str(e)}", exc_info=True)
         
         return task
             
