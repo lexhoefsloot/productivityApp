@@ -184,6 +184,12 @@
         .json-null {
             color: #fd971f;
         }
+        .debug-info {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -365,6 +371,7 @@
             // Create FormData object
             const formData = new FormData();
             formData.append('image', fileInput.files[0]);
+            formData.append('debug', 'true'); // Add debug flag to FormData
             
             // Show processing indicator
             submitButton.disabled = true;
@@ -378,15 +385,11 @@
             addLog('Starting processing...', 'info');
             
             try {
-                // Send the request to the server with debug=true
-                addLog('Sending request to server in debug mode...', 'info');
+                // Send the request to the server
+                addLog('Sending request to server...', 'info');
                 const startTime = performance.now();
                 
-                // Log the URL we're sending the request to
-                const requestUrl = './process-screenshot?debug=true';
-                addLog(`Request URL: ${requestUrl}`, 'info');
-                
-                const response = await fetch(requestUrl, {
+                const response = await fetch('./process-screenshot', {
                     method: 'POST',
                     body: formData
                 });
@@ -399,7 +402,7 @@
                 
                 // Log the raw response for debugging
                 console.log('API Response:', data);
-                addLog(`Raw API response received: ${JSON.stringify(data).substring(0, 100)}...`, 'info');
+                addLog(`Raw API response received: ${JSON.stringify(data)}`, 'info');
                 
                 // Hide processing indicator
                 submitButton.disabled = false;
@@ -412,65 +415,75 @@
                     // Main result
                     let resultHtml = `
                         <h3 class="success">Success!</h3>
-                    `;
-                    
-                    // Display task info
-                    if (data.task) {
-                        resultHtml += `<p><strong>Task:</strong> ${data.task}</p>`;
-                    } else if (data.title) {
-                        resultHtml += `<p><strong>Task:</strong> ${data.title}</p>`;
-                    } else {
-                        resultHtml += `<p><strong>Task:</strong> <span class="warning">No task information available</span></p>`;
-                    }
-                    
-                    resultHtml += `<p><strong>Processing Time:</strong> ${processingTime} seconds</p>`;
-                    
-                    // Add file attachment info if available
-                    if (data.file_attached) {
-                        resultHtml += `<p class="success"><strong>File Attached:</strong> Yes</p>`;
-                        if (data.attachment_details) {
-                            resultHtml += `<p><strong>Attachment ID:</strong> ${data.attachment_details.comment_id}</p>`;
-                        }
-                    } else {
-                        resultHtml += `<p class="warning"><strong>File Attached:</strong> No</p>`;
-                    }
-                    
-                    // Add raw response data for debugging
-                    resultHtml += `
-                        <div style="margin-top: 20px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
-                            <h4>Debug Information:</h4>
-                            <pre style="white-space: pre-wrap; word-break: break-all; font-size: 12px;">${JSON.stringify(data, null, 2)}</pre>
+                        <div class="debug-info">
+                            <h4>Response Data:</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
                         </div>
                     `;
+                    
+                    // Display task info - check all possible response formats
+                    let taskTitle = '';
+                    if (typeof data === 'object') {
+                        if (data.task) {
+                            taskTitle = data.task;
+                        } else if (data.title) {
+                            taskTitle = data.title;
+                        } else if (data.response && data.response.title) {
+                            taskTitle = data.response.title;
+                        } else if (data.todoist_response && data.todoist_response.title) {
+                            taskTitle = data.todoist_response.title;
+                        }
+                    } else if (typeof data === 'string') {
+                        taskTitle = data;
+                    }
+                    
+                    if (taskTitle) {
+                        resultHtml = `
+                            <h3 class="success">Success!</h3>
+                            <p><strong>Task:</strong> ${taskTitle}</p>
+                            <p><strong>Processing Time:</strong> ${processingTime} seconds</p>
+                            <div class="debug-info">
+                                <h4>Response Data:</h4>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </div>
+                        `;
+                    }
                     
                     document.getElementById('resultPanel').innerHTML = resultHtml;
                     
                     // Anthropic response
                     if (data.anthropic_response) {
-                        document.getElementById('anthropicPanel').innerHTML = formatJSON(data.anthropic_response);
+                        document.getElementById('anthropicPanel').innerHTML = `
+                            <h4>Anthropic Response:</h4>
+                            <pre>${formatJSON(data.anthropic_response)}</pre>
+                        `;
                     } else {
                         document.getElementById('anthropicPanel').innerHTML = '<p>No detailed Anthropic response available</p>';
                     }
                     
                     // Todoist response
                     if (data.todoist_response) {
-                        document.getElementById('todoistPanel').innerHTML = formatJSON(data.todoist_response);
+                        document.getElementById('todoistPanel').innerHTML = `
+                            <h4>Todoist Response:</h4>
+                            <pre>${formatJSON(data.todoist_response)}</pre>
+                        `;
                     } else {
                         document.getElementById('todoistPanel').innerHTML = '<p>No detailed Todoist response available</p>';
                     }
                     
-                    const taskDisplay = data.task || data.title || 'Unknown task';
-                    addLog(`Task created: ${taskDisplay}`, 'success');
-                    if (data.file_attached) {
-                        addLog('File attachment added to task', 'success');
-                    }
+                    addLog(`Task processed successfully: ${taskTitle || 'Unknown task'}`, 'success');
                 } else {
+                    // Error handling
+                    const errorMessage = data.error || data.message || 'An unknown error occurred';
                     document.getElementById('resultPanel').innerHTML = `
                         <h3 class="error">Error</h3>
-                        <p>${data.error || 'An unknown error occurred.'}</p>
+                        <p>${errorMessage}</p>
+                        <div class="debug-info">
+                            <h4>Error Details:</h4>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
                     `;
-                    
-                    addLog(`Error: ${data.error || 'An unknown error occurred.'}`, 'error');
+                    addLog(`Error: ${errorMessage}`, 'error');
                 }
             } catch (error) {
                 // Hide processing indicator
@@ -478,12 +491,13 @@
                 processingIndicator.style.display = 'none';
                 
                 // Display error message
+                const errorMessage = `Failed to communicate with the server: ${error.message}`;
                 document.getElementById('resultPanel').innerHTML = `
                     <h3 class="error">Error</h3>
-                    <p>Failed to communicate with the server: ${error.message}</p>
+                    <p>${errorMessage}</p>
                 `;
                 
-                addLog(`Error: ${error.message}`, 'error');
+                addLog(`Error: ${errorMessage}`, 'error');
             }
         });
         
