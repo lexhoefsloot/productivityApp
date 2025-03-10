@@ -24,7 +24,7 @@ This method processes the most recent screenshot:
 5. Add another action by tapping "+"
 6. Search for and select "Get Contents of URL"
 7. Configure the "Get Contents of URL" action:
-   - URL: `https://your-domain.com/screenshot-to-todoist/process-screenshot`
+   - URL: `https://lieshout.loseyourip.com/screenshot-to-todoist/process-screenshot`
    - Method: POST
    - Request Body: Form
    - Headers: Add a header with name "Accept" and value "application/json"
@@ -48,7 +48,7 @@ This method allows you to process any image from the share sheet:
 7. Add an action by tapping "+"
 8. Search for and select "Get Contents of URL"
 9. Configure the "Get Contents of URL" action:
-   - URL: `https://your-domain.com/screenshot-to-todoist/process-screenshot`
+   - URL: `https://lieshout.loseyourip.com/screenshot-to-todoist/process-screenshot`
    - Method: POST
    - Request Body: Form
    - Headers: Add a header with name "Accept" and value "application/json"
@@ -97,9 +97,8 @@ Now you can say "Hey Siri, process my screenshot" to run the shortcut.
 If your shortcut isn't working:
 
 1. Check your internet connection
-2. Verify that the URL in the shortcut matches your server's URL
-3. Make sure the server is running and accessible
-4. Check that the image is being properly attached to the request
-5. Look at the notification for any error messages
+2. Verify that the server is running and accessible
+3. Check that the image is being properly attached to the request
+4. Look at the notification for any error messages
 
 For more detailed error information, you can modify the shortcut to show the full response from the server. 

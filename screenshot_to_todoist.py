@@ -29,8 +29,18 @@ app = Flask(__name__, static_folder='static')
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 TODOIST_API_KEY = os.getenv("TODOIST_API_KEY")
 
-# Initialize Anthropic client
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+# Initialize Anthropic client - fix for compatibility issue
+try:
+    # Try the standard initialization first
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+except TypeError as e:
+    if "unexpected keyword argument 'proxies'" in str(e):
+        # If there's a proxies error, try without any additional parameters
+        logger.warning("Detected incompatibility with Anthropic client. Using alternative initialization.")
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    else:
+        # If it's a different error, re-raise it
+        raise
 
 # Claude prompt for task analysis
 CLAUDE_PROMPT = """

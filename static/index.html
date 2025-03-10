@@ -113,6 +113,9 @@
     </div>
     
     <script>
+        // Get the base path from the current URL
+        const basePath = window.location.pathname.replace(/\/index\.html$/, '');
+        
         document.getElementById('uploadForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -136,7 +139,10 @@
             
             try {
                 // Send the request to the server
-                const response = await fetch('/process-screenshot', {
+                // Use the correct path based on whether we're running directly or through Apache
+                const processUrl = basePath + '/process-screenshot';
+                
+                const response = await fetch(processUrl, {
                     method: 'POST',
                     body: formData
                 });
