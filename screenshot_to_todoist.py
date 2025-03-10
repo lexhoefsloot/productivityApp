@@ -91,6 +91,15 @@ if not TODOIST_API_KEY:
 # Initialize Anthropic client with proper configuration
 try:
     logger.debug("Attempting to initialize Anthropic client...")
+    # Check for any proxy environment variables
+    for var in proxy_vars:
+        if var in os.environ:
+            logger.warning(f"Found proxy setting in environment: {var}={os.environ[var]}")
+            # Temporarily unset any proxy variables that might interfere with Anthropic SDK
+            proxy_value = os.environ.pop(var)
+            logger.warning(f"Temporarily removed {var} from environment")
+    
+    # Initialize with just the API key
     client = Anthropic(api_key=ANTHROPIC_API_KEY)
     logger.info("Successfully initialized Anthropic client")
 except Exception as e:
@@ -255,8 +264,8 @@ def analyze_image_with_claude(base64_image, mime_type):
             "role": message.role,
             "content": response_text,
             "usage": {
-                "input_tokens": message.input_tokens,
-                "output_tokens": message.output_tokens
+                "input_tokens": message.usage.input_tokens,
+                "output_tokens": message.usage.output_tokens
             }
         }
         
