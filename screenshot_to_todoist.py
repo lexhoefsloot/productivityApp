@@ -204,8 +204,12 @@ def process_screenshot():
         
         # Get additional instructions if provided
         additional_instructions = request.args.get('additional_instructions', '') or request.form.get('additional_instructions', '')
+        additional_instructions = additional_instructions.strip()
         if additional_instructions:
             logger.info(f"Additional instructions received: {additional_instructions}")
+        else:
+            logger.info("No additional instructions provided, using default")
+            additional_instructions = "no additional instructions"
         
         # Check if the request contains an image
         if 'image' not in request.files:
