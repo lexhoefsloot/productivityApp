@@ -196,7 +196,7 @@ def process_screenshot():
     """
     try:
         # Check if in debug mode
-        debug_mode = request.args.get('debug', 'false').lower() == 'true'
+        debug_mode = request.args.get('debug', 'false').lower() == 'true' or request.form.get('debug', 'false').lower() == 'true'
         
         # Check if the request contains an image
         if 'image' not in request.files:
@@ -204,7 +204,14 @@ def process_screenshot():
             return jsonify({"error": "No image file provided"}), 400
         
         image_file = request.files['image']
-        logger.info(f"Received image: {image_file.filename}, type: {image_file.content_type}")
+        logger.info(f"Received image: {image_file.filename}, type: {image_file.content_type}, size: {request.content_length} bytes")
+        
+        # Get additional file metadata if provided
+        file_name = request.form.get('file_name', image_file.filename)
+        file_type = request.form.get('file_type', image_file.content_type)
+        file_size = request.form.get('file_size')
+        
+        logger.debug(f"File metadata: name={file_name}, type={file_type}, size={file_size or 'unknown'}")
         
         # Read the image data as bytes
         image_data = image_file.read()
@@ -225,7 +232,12 @@ def process_screenshot():
         
         # Create task in Todoist with the original image data
         logger.info(f"Creating Todoist task: {task_info}")
+        logger.debug(f"Image data type: {type(original_image_data)}, length: {len(original_image_data)} bytes")
         todoist_response = create_todoist_task(task_info, original_image_data, mime_type)
+        
+        # Check if file attachment was successful
+        file_attached = "file_attachment" in todoist_response
+        logger.info(f"File attachment status: {'SUCCESS' if file_attached else 'FAILED'}")
         
         # Extract the title from the task (remove any time estimate at the beginning if present)
         task_title = task_info
@@ -241,12 +253,20 @@ def process_screenshot():
                 "title": task_title,
                 "anthropic_response": anthropic_response,
                 "todoist_response": todoist_response,
-                "task_created": True
+                "task_created": True,
+                "file_attached": file_attached,
+                "diagnostics": {
+                    "image_size": len(original_image_data),
+                    "mime_type": mime_type,
+                    "file_name": file_name,
+                    "has_todoist_key": bool(TODOIST_API_KEY),
+                    "todoist_key_length": len(TODOIST_API_KEY) if TODOIST_API_KEY else 0
+                }
             }
             
             # Add file attachment info if available
-            if "file_attachment" in todoist_response:
-                response_data["file_attached"] = True
+            if file_attached:
+                response_data["file_attachment"] = todoist_response.get("file_attachment", {})
                 response_data["attachment_details"] = {
                     "comment_id": todoist_response["file_attachment"].get("id"),
                     "task_id": todoist_response["id"]
@@ -256,12 +276,9 @@ def process_screenshot():
             response_data = {
                 "status": "success",
                 "title": task_title,
-                "task_created": True
+                "task_created": True,
+                "file_attached": file_attached
             }
-            
-            # Add file attachment info if available
-            if "file_attachment" in todoist_response:
-                response_data["file_attached"] = True
             
         return jsonify(response_data), 200
         
@@ -385,7 +402,7 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                 logger.error(f"Image data is not in a recognized format: {type(image_data)}")
                 return task
             
-            logger.debug(f"Binary data prepared, length: {len(binary_data)} bytes")
+            logger.debug(f"Binary data prepared, length: {len(binary_data)} bytes, first 50 bytes: {binary_data[:50]}")
             
             # Try using the REST API first (v2)
             try:
@@ -401,6 +418,7 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                     mime_type = "image/jpeg"
                 
                 logger.debug(f"Uploading with filename: {filename}, mime_type: {mime_type}")
+                logger.debug(f"API Key validity check: {'VALID' if TODOIST_API_KEY and len(TODOIST_API_KEY) > 20 else 'INVALID'}")
                 
                 # Create a file-like object from the image data
                 file_obj = io.BytesIO(binary_data)
@@ -411,6 +429,7 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                 }
                 
                 # Upload the file to Todoist REST API
+                logger.debug(f"Making REST API request to {upload_url} with task_id: {task['id']}")
                 upload_response = requests.post(
                     upload_url, 
                     headers=upload_headers, 
@@ -427,9 +446,10 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                     task["file_attachment"] = attachment_data
                     return task
                 else:
-                    logger.warning(f"REST API upload failed, trying Sync API...")
+                    logger.warning(f"REST API upload failed with status {upload_response.status_code}: {upload_response.text}")
+                    logger.warning(f"Trying Sync API...")
             except Exception as e:
-                logger.error(f"Error with REST API upload: {str(e)}")
+                logger.error(f"Error with REST API upload: {str(e)}", exc_info=True)
                 logger.warning("Falling back to Sync API...")
             
             # If REST API failed, try the Sync API (v8)
@@ -449,6 +469,7 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                 }
                 
                 # Upload the file to Todoist Sync API
+                logger.debug(f"Making Sync API request to {upload_url}")
                 upload_response = requests.post(upload_url, headers=upload_headers, files=files)
                 
                 logger.debug(f"Sync API upload response status: {upload_response.status_code}")
@@ -491,8 +512,12 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                         logger.info("File attached to task successfully")
                         # Add comment info to the task response
                         task["file_attachment"] = comment_response.json()
+                else:
+                    logger.error(f"File upload succeeded but missing required data. Response: {upload_data}")
             except Exception as e:
                 logger.error(f"Error with Sync API upload: {str(e)}", exc_info=True)
+        else:
+            logger.warning("No image data provided, skipping file attachment")
         
         return task
             
