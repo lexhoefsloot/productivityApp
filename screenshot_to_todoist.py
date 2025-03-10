@@ -488,14 +488,14 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                     
                     # Add a comment with the file attachment to the task
                     comment_url = "https://api.todoist.com/rest/v2/comments"
+                    
+                    # According to Todoist API, for file attachments, we need to follow their specific format
                     comment_data = {
                         "task_id": task["id"],
-                        "content": "",  # Empty content but required by the API
+                        "content": "Screenshot attachment",  # Adding a meaningful content message
                         "attachment": {
                             "resource_type": "file",
-                            "file_url": file_url,
-                            "file_type": mime_type,
-                            "file_name": upload_data.get("file_name", filename)
+                            "file_url": file_url
                         }
                     }
                     
