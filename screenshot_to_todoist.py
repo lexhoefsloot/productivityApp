@@ -6,7 +6,7 @@ import logging
 import traceback
 from flask import Flask, request, jsonify, send_from_directory
 import requests
-import anthropic
+from anthropic import Anthropic
 import httpx
 from dotenv import load_dotenv
 
@@ -43,7 +43,7 @@ TODOIST_API_KEY = os.getenv("TODOIST_API_KEY")
 # Initialize Anthropic client with proper configuration
 try:
     logger.debug("Attempting to initialize Anthropic client...")
-    client = anthropic.Client(api_key=ANTHROPIC_API_KEY)
+    client = Anthropic(api_key=ANTHROPIC_API_KEY)
     logger.info("Successfully initialized Anthropic client")
 except Exception as e:
     logger.error(f"Error initializing Anthropic client: {str(e)}")
@@ -160,12 +160,11 @@ def analyze_image_with_claude(base64_image, mime_type):
         anthropic_response = {
             "model": message.model,
             "id": message.id,
-            "type": message.type,
             "role": message.role,
             "content": response_text,
             "usage": {
-                "input_tokens": message.usage.input_tokens,
-                "output_tokens": message.usage.output_tokens
+                "input_tokens": message.input_tokens,
+                "output_tokens": message.output_tokens
             }
         }
         
