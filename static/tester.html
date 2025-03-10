@@ -382,7 +382,11 @@
                 addLog('Sending request to server in debug mode...', 'info');
                 const startTime = performance.now();
                 
-                const response = await fetch('./process-screenshot?debug=true', {
+                // Log the URL we're sending the request to
+                const requestUrl = './process-screenshot?debug=true';
+                addLog(`Request URL: ${requestUrl}`, 'info');
+                
+                const response = await fetch(requestUrl, {
                     method: 'POST',
                     body: formData
                 });
@@ -392,6 +396,10 @@
                 
                 // Parse the JSON response
                 const data = await response.json();
+                
+                // Log the raw response for debugging
+                console.log('API Response:', data);
+                addLog(`Raw API response received: ${JSON.stringify(data).substring(0, 100)}...`, 'info');
                 
                 // Hide processing indicator
                 submitButton.disabled = false;
@@ -404,9 +412,18 @@
                     // Main result
                     let resultHtml = `
                         <h3 class="success">Success!</h3>
-                        <p><strong>Task:</strong> ${data.task || data.title}</p>
-                        <p><strong>Processing Time:</strong> ${processingTime} seconds</p>
                     `;
+                    
+                    // Display task info
+                    if (data.task) {
+                        resultHtml += `<p><strong>Task:</strong> ${data.task}</p>`;
+                    } else if (data.title) {
+                        resultHtml += `<p><strong>Task:</strong> ${data.title}</p>`;
+                    } else {
+                        resultHtml += `<p><strong>Task:</strong> <span class="warning">No task information available</span></p>`;
+                    }
+                    
+                    resultHtml += `<p><strong>Processing Time:</strong> ${processingTime} seconds</p>`;
                     
                     // Add file attachment info if available
                     if (data.file_attached) {
@@ -417,6 +434,14 @@
                     } else {
                         resultHtml += `<p class="warning"><strong>File Attached:</strong> No</p>`;
                     }
+                    
+                    // Add raw response data for debugging
+                    resultHtml += `
+                        <div style="margin-top: 20px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;">
+                            <h4>Debug Information:</h4>
+                            <pre style="white-space: pre-wrap; word-break: break-all; font-size: 12px;">${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
                     
                     document.getElementById('resultPanel').innerHTML = resultHtml;
                     
@@ -434,7 +459,7 @@
                         document.getElementById('todoistPanel').innerHTML = '<p>No detailed Todoist response available</p>';
                     }
                     
-                    const taskDisplay = data.task || data.title;
+                    const taskDisplay = data.task || data.title || 'Unknown task';
                     addLog(`Task created: ${taskDisplay}`, 'success');
                     if (data.file_attached) {
                         addLog('File attachment added to task', 'success');
