@@ -58,6 +58,11 @@ def index():
     """Serve the index.html file"""
     return send_from_directory(app.static_folder, 'index.html')
 
+@app.route('/tester')
+def tester():
+    """Serve the tester.html file"""
+    return send_from_directory(app.static_folder, 'tester.html')
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Simple health check endpoint"""
@@ -92,7 +97,7 @@ def process_screenshot():
         
         # Call Claude Vision API
         logger.info("Calling Claude Vision API")
-        task_info = analyze_image_with_claude(base64_image, mime_type)
+        task_info, anthropic_response = analyze_image_with_claude(base64_image, mime_type)
         
         # Create task in Todoist
         logger.info(f"Creating Todoist task: {task_info}")
@@ -102,6 +107,7 @@ def process_screenshot():
         return jsonify({
             "status": "success",
             "task": task_info,
+            "anthropic_response": anthropic_response,
             "todoist_response": todoist_response
         }), 200
         
@@ -142,17 +148,35 @@ def analyze_image_with_claude(base64_image, mime_type):
         # Extract the response text
         response_text = message.content[0].text
         
+        # Store the full response for debugging
+        anthropic_response = {
+            "model": message.model,
+            "id": message.id,
+            "type": message.type,
+            "role": message.role,
+            "content": response_text,
+            "usage": {
+                "input_tokens": message.usage.input_tokens,
+                "output_tokens": message.usage.output_tokens
+            }
+        }
+        
         # Clean up the response (remove any extra text, just get the task format)
         # The response should be in the format "XY: *Task Title*"
         response_lines = response_text.strip().split('\n')
+        task_info = None
         for line in response_lines:
             # Look for a line that matches our expected format
             if len(line) >= 5 and line[0].isdigit() and line[1].isdigit() and line[2:4] == ": ":
-                return line.strip()
+                task_info = line.strip()
+                break
         
         # If we couldn't find a properly formatted line, return the whole response
-        logger.warning(f"Claude response didn't match expected format: {response_text}")
-        return response_text.strip()
+        if not task_info:
+            logger.warning(f"Claude response didn't match expected format: {response_text}")
+            task_info = response_text.strip()
+        
+        return task_info, anthropic_response
         
     except Exception as e:
         logger.error(f"Error calling Claude API: {str(e)}", exc_info=True)

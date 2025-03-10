@@ -24,6 +24,15 @@ echo "Creating a backup of the existing Apache configuration..."
 TIMESTAMP=$(date +"%Y%m%d%H%M%S")
 cp /etc/apache2/sites-available/zwemmen.conf /etc/apache2/sites-available/zwemmen.conf.backup.$TIMESTAMP
 
+# Check if the configuration already exists in the Apache config
+if grep -q "Screenshot to Todoist configuration" /etc/apache2/sites-available/zwemmen.conf; then
+    echo "Screenshot to Todoist configuration already exists in Apache config."
+    echo "Removing existing configuration before adding the updated one..."
+    
+    # Create a temporary file without the existing configuration
+    sed -i '/# Screenshot to Todoist configuration/,/# Error logs specific to Screenshot to Todoist/d' /etc/apache2/sites-available/zwemmen.conf
+fi
+
 # Add our configuration to the existing VirtualHost
 echo "Adding Screenshot to Todoist configuration to the existing VirtualHost..."
 
@@ -40,6 +49,7 @@ echo "Enabling required Apache modules..."
 a2enmod proxy
 a2enmod proxy_http
 a2enmod headers
+a2enmod rewrite
 
 # Test the Apache configuration
 echo "Testing Apache configuration..."

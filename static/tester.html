@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screenshot to Todoist Advanced Tester</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1, h2, h3 {
+            color: #0066cc;
+        }
+        .header {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+        .panel {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: white;
+        }
+        button {
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0055aa;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .preview {
+            max-width: 100%;
+            max-height: 300px;
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .result-panel {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            overflow: auto;
+            max-height: 400px;
+        }
+        .log-panel {
+            font-family: monospace;
+            background-color: #1e1e1e;
+            color: #ddd;
+            padding: 15px;
+            border-radius: 4px;
+            overflow: auto;
+            max-height: 400px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .warning {
+            color: #ffc107;
+        }
+        .info {
+            color: #17a2b8;
+        }
+        .tab-container {
+            margin-top: 20px;
+        }
+        .tab-buttons {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab-button {
+            padding: 10px 15px;
+            background-color: #f1f1f1;
+            border: none;
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        .tab-button.active {
+            background-color: #0066cc;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top-color: #0066cc;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        .status-indicator.online {
+            background-color: #28a745;
+        }
+        .status-indicator.offline {
+            background-color: #dc3545;
+        }
+        .json-key {
+            color: #f92672;
+        }
+        .json-value {
+            color: #a6e22e;
+        }
+        .json-string {
+            color: #e6db74;
+        }
+        .json-number {
+            color: #ae81ff;
+        }
+        .json-boolean {
+            color: #66d9ef;
+        }
+        .json-null {
+            color: #fd971f;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Screenshot to Todoist Advanced Tester</h1>
+        <p>This tool allows you to test the Screenshot to Todoist service with detailed logging and response information.</p>
+        <div>
+            <span class="status-indicator" id="serviceStatus"></span>
+            <span id="serviceStatusText">Checking service status...</span>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="panel">
+            <h2>Upload Screenshot</h2>
+            <form id="uploadForm">
+                <div class="form-group">
+                    <label for="imageFile">Select an image:</label>
+                    <input type="file" id="imageFile" name="image" accept="image/*" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Image Preview:</label>
+                    <div id="imagePreview"></div>
+                </div>
+                
+                <button type="submit" id="submitButton">Process Screenshot</button>
+                <span id="processingIndicator" style="display: none;">
+                    <span class="loading"></span> Processing...
+                </span>
+            </form>
+        </div>
+        
+        <div class="panel">
+            <h2>Results</h2>
+            <div class="tab-container">
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="result">Result</button>
+                    <button class="tab-button" data-tab="anthropic">Anthropic Response</button>
+                    <button class="tab-button" data-tab="todoist">Todoist Response</button>
+                    <button class="tab-button" data-tab="logs">Logs</button>
+                </div>
+                
+                <div id="resultTab" class="tab-content active">
+                    <div class="result-panel" id="resultPanel">
+                        <p>Results will appear here after processing...</p>
+                    </div>
+                </div>
+                
+                <div id="anthropicTab" class="tab-content">
+                    <div class="log-panel" id="anthropicPanel">
+                        <p>Anthropic API response will appear here...</p>
+                    </div>
+                </div>
+                
+                <div id="todoistTab" class="tab-content">
+                    <div class="log-panel" id="todoistPanel">
+                        <p>Todoist API response will appear here...</p>
+                    </div>
+                </div>
+                
+                <div id="logsTab" class="tab-content">
+                    <div class="log-panel" id="logPanel">
+                        <p>Processing logs will appear here...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Function to check service status
+        async function checkServiceStatus() {
+            const statusIndicator = document.getElementById('serviceStatus');
+            const statusText = document.getElementById('serviceStatusText');
+            
+            try {
+                const response = await fetch('./health');
+                if (response.ok) {
+                    statusIndicator.className = 'status-indicator online';
+                    statusText.textContent = 'Service is online';
+                    return true;
+                } else {
+                    statusIndicator.className = 'status-indicator offline';
+                    statusText.textContent = 'Service is experiencing issues';
+                    return false;
+                }
+            } catch (error) {
+                statusIndicator.className = 'status-indicator offline';
+                statusText.textContent = 'Service is offline';
+                return false;
+            }
+        }
+        
+        // Function to format JSON with syntax highlighting
+        function formatJSON(json) {
+            if (typeof json !== 'string') {
+                json = JSON.stringify(json, null, 2);
+            }
+            
+            return json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                    let cls = 'json-number';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            cls = 'json-key';
+                        } else {
+                            cls = 'json-string';
+                        }
+                    } else if (/true|false/.test(match)) {
+                        cls = 'json-boolean';
+                    } else if (/null/.test(match)) {
+                        cls = 'json-null';
+                    }
+                    return '<span class="' + cls + '">' + match + '</span>';
+                });
+        }
+        
+        // Function to add log message
+        function addLog(message, type = 'info') {
+            const logPanel = document.getElementById('logPanel');
+            const timestamp = new Date().toISOString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            logPanel.appendChild(logEntry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+        
+        // Tab switching functionality
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                // Remove active class from all buttons and content
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                
+                // Add active class to clicked button and corresponding content
+                button.classList.add('active');
+                document.getElementById(`${button.dataset.tab}Tab`).classList.add('active');
+            });
+        });
+        
+        // Image preview functionality
+        document.getElementById('imageFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) {
+                document.getElementById('imagePreview').innerHTML = '';
+                return;
+            }
+            
+            // Create image preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.className = 'preview';
+                document.getElementById('imagePreview').innerHTML = '';
+                document.getElementById('imagePreview').appendChild(img);
+            };
+            reader.readAsDataURL(file);
+            
+            addLog(`Selected file: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`, 'info');
+        });
+        
+        // Form submission
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('imageFile');
+            const submitButton = document.getElementById('submitButton');
+            const processingIndicator = document.getElementById('processingIndicator');
+            
+            // Check if a file was selected
+            if (!fileInput.files.length) {
+                addLog('No file selected', 'error');
+                return;
+            }
+            
+            // Create FormData object
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+            
+            // Show processing indicator
+            submitButton.disabled = true;
+            processingIndicator.style.display = 'inline-block';
+            
+            // Clear previous results
+            document.getElementById('resultPanel').innerHTML = '<p>Processing...</p>';
+            document.getElementById('anthropicPanel').innerHTML = '<p>Waiting for Anthropic API response...</p>';
+            document.getElementById('todoistPanel').innerHTML = '<p>Waiting for Todoist API response...</p>';
+            
+            addLog('Starting processing...', 'info');
+            
+            try {
+                // Send the request to the server
+                addLog('Sending request to server...', 'info');
+                const startTime = performance.now();
+                
+                const response = await fetch('./process-screenshot', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const endTime = performance.now();
+                const processingTime = ((endTime - startTime) / 1000).toFixed(2);
+                
+                // Parse the JSON response
+                const data = await response.json();
+                
+                // Hide processing indicator
+                submitButton.disabled = false;
+                processingIndicator.style.display = 'none';
+                
+                addLog(`Processing completed in ${processingTime} seconds`, 'success');
+                
+                // Display the result
+                if (response.ok) {
+                    // Main result
+                    document.getElementById('resultPanel').innerHTML = `
+                        <h3 class="success">Success!</h3>
+                        <p><strong>Task:</strong> ${data.task}</p>
+                        <p><strong>Processing Time:</strong> ${processingTime} seconds</p>
+                    `;
+                    
+                    // Anthropic response
+                    if (data.anthropic_response) {
+                        document.getElementById('anthropicPanel').innerHTML = formatJSON(data.anthropic_response);
+                    } else {
+                        document.getElementById('anthropicPanel').innerHTML = '<p>No detailed Anthropic response available</p>';
+                    }
+                    
+                    // Todoist response
+                    document.getElementById('todoistPanel').innerHTML = formatJSON(data.todoist_response);
+                    
+                    addLog(`Task created: ${data.task}`, 'success');
+                } else {
+                    document.getElementById('resultPanel').innerHTML = `
+                        <h3 class="error">Error</h3>
+                        <p>${data.error || 'An unknown error occurred.'}</p>
+                    `;
+                    
+                    addLog(`Error: ${data.error || 'An unknown error occurred.'}`, 'error');
+                }
+            } catch (error) {
+                // Hide processing indicator
+                submitButton.disabled = false;
+                processingIndicator.style.display = 'none';
+                
+                // Display error message
+                document.getElementById('resultPanel').innerHTML = `
+                    <h3 class="error">Error</h3>
+                    <p>Failed to communicate with the server: ${error.message}</p>
+                `;
+                
+                addLog(`Error: ${error.message}`, 'error');
+            }
+        });
+        
+        // Check service status on page load
+        window.addEventListener('load', async () => {
+            const isOnline = await checkServiceStatus();
+            if (isOnline) {
+                addLog('Service is online and ready', 'success');
+            } else {
+                addLog('Service is offline or experiencing issues', 'error');
+            }
+            
+            // Periodically check service status
+            setInterval(checkServiceStatus, 30000);
+        });
+    </script>
+</body>
+</html> 
