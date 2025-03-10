@@ -110,7 +110,7 @@ except Exception as e:
 
 # Claude prompt for task analysis
 CLAUDE_PROMPT = """
-Below is an image of a task. Please analyze the image and determine the task's title in no more than 5-7 words. Also, estimate the required time to complete this task and express it in a two-digit format where the first digit is the number of hours and the second digit is the number of tens of minutes (e.g., '02' means 0 hours and 20 minutes). Return your answer strictly in the following format:
+Below is a screenshot of something that needs to be turned into a task that I need to do and I want to add to my todo list. Please analyze the image and determine the task's title in no more than 5-7 words. Also, estimate the required time to complete this task and express it in a two-digit format where the first digit is the number of hours and the second digit is the number of tens of minutes (e.g., '02' means 0 hours and 20 minutes). Return your answer strictly in the following format:
 
 XY: *Title of Task*
 
