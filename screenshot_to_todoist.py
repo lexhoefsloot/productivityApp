@@ -339,11 +339,17 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
             logger.info("Uploading image to Todoist")
             
             # Convert image_data to the correct format for upload
-            # If it's base64, decode it first
-            if isinstance(image_data, str) and image_data.startswith("data:") or "base64" in image_data:
+            # If it's already bytes, use it directly
+            if isinstance(image_data, bytes):
+                binary_data = image_data
+            # If it's base64 string, decode it
+            elif isinstance(image_data, str) and ('base64' in image_data or image_data.startswith('data:')):
                 # Extract the actual base64 content
-                image_data = image_data.split("base64,")[1] if "base64," in image_data else image_data
-                image_data = base64.b64decode(image_data)
+                base64_content = image_data.split("base64,")[1] if "base64," in image_data else image_data
+                binary_data = base64.b64decode(base64_content)
+            else:
+                logger.error("Image data is not in a recognized format")
+                return task
             
             # Prepare the file upload
             upload_url = "https://api.todoist.com/sync/v8/uploads/add"
@@ -357,7 +363,7 @@ def create_todoist_task(task_info, image_data=None, mime_type=None):
                 mime_type = "image/jpeg"
             
             # Create a file-like object from the image data
-            file_obj = io.BytesIO(image_data)
+            file_obj = io.BytesIO(binary_data)
             
             # Create the multipart/form-data payload
             files = {
